@@ -65,3 +65,10 @@ Use `inspect_analysis_view` with `view: {kind: "api-surface"}` on retained
 method, origin and path template. Format matches are inferences, not handler
 identity or schemas. Group pages cite parent record ordinals; consult record
 coverage and exclusions before claiming completeness. No requests are replayed.
+
+Use `compare_web_api_surfaces` for differences between two historical capture
+Evidence sources (HAR initially). Pass `left` and `right`, each an explicit
+`inline` source or same-session `retained-evidence` reference. The result keeps
+both capture identities and original record references, and pages groups after
+complete comparison. One-sided observations are not proof of server additions
+or removals; preserve source exclusions, missing response facts and coverage.

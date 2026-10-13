@@ -24,6 +24,7 @@ import type { GoBinaryService } from "../application/go/GoBinaryService.js";
 import { registerGoTools } from "./registerGoTools.js";
 import type { RecordedCrashService } from "../application/binaryDiagnostics/RecordedCrashService.js";
 import { registerAnalysisViewTool } from "./registerAnalysisViewTool.js";
+import { registerWebApiSurfaceComparisonTool } from "./registerWebApiSurfaceComparisonTool.js";
 import { registerBinaryDiagnosticsTools } from "./registerBinaryDiagnosticsTools.js";
 import { FridaInstrumentationManager } from "../frida/FridaInstrumentationManager.js";
 import { registerFridaTools } from "./registerFridaTools.js";
@@ -562,6 +563,13 @@ const registerConfiguredAnalysisTools = (
     withAdmittedAnalysis,
   );
   registerAnalysisViewTool(
+    server,
+    toolLogger,
+    evidenceById,
+    recordEvidence,
+    withAdmittedAnalysis,
+  );
+  registerWebApiSurfaceComparisonTool(
     server,
     toolLogger,
     evidenceById,

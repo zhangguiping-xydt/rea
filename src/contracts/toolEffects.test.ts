@@ -29,6 +29,8 @@ const EXECUTION_WORDING_EXCEPTIONS: Readonly<Record<string, string>> = {
     "decodes bytecode in REA's bundled worker without executing it",
   compare_wasm_interfaces:
     "compares retained inspection Evidence without executing modules",
+  compare_web_api_surfaces:
+    "compares retained capture Evidence without target execution or replay",
   inspect_wasm_artifact:
     "WABT validates and decompiles the module without executing it",
   identify_flutter_build:

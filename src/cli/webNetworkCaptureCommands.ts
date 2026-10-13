@@ -7,6 +7,9 @@ import type { Logger } from "pino";
 import type { CliInstance } from "./types.js";
 import { withCommandCancellation } from "./commandCancellation.js";
 import { finishAnalysisCommand } from "./finishAnalysisCommand.js";
+import { compareWebApiSurfaces } from "../application/analysisView/WebApiSurfaceComparisonService.js";
+import { parseCliJsonInput } from "../cliJsonInput.js";
+import { projectAnalysisError } from "../domain/analysisErrorProjection.js";
 
 /** Expose offline historical capture inspection with the same selection contract as MCP. */
 export const registerWebNetworkCaptureCommands = (
@@ -14,6 +17,29 @@ export const registerWebNetworkCaptureCommands = (
   logger: Logger,
   environment: Readonly<NodeJS.ProcessEnv>,
 ): void => {
+  cli.command(CLI_COMMANDS.compareWebApiSurfaces, {
+    description:
+      "Compare observed API groups from two retained historical captures",
+    args: z.object({
+      input: z
+        .string()
+        .describe(
+          "JSON or JSON file containing left/right inline capture Evidence sources and optional offset/limit",
+        ),
+    }),
+    run: ({ args }) =>
+      withCommandCancellation((signal) =>
+        logCliCommand(logger, CLI_COMMANDS.compareWebApiSurfaces, async () => {
+          const input = await parseCliJsonInput(
+            args.input,
+            "compare_web_api_surfaces",
+          );
+          if (!input.ok) return input.error;
+          const result = await compareWebApiSurfaces(input.value, { signal });
+          return result.ok ? result.value : projectAnalysisError(result.error);
+        }),
+      ),
+  });
   const service = createWebNetworkCaptureService(environment);
   cli.command(CLI_COMMANDS.inspectWebNetworkCapture, {
     description:

@@ -2,6 +2,7 @@ import {
   inspectWebNetworkCaptureInputSchema,
   webNetworkCaptureSchema,
 } from "../domain/webNetworkCapture.js";
+import { COMPARE_WEB_API_SURFACES_CONTRACT } from "./webApiSurfaceComparisonContracts.js";
 import type { ToolContract } from "./toolContractTypes.js";
 import { toolContractMetadata } from "./toolEffects.js";
 import {
@@ -12,6 +13,7 @@ import { webNetworkCaptureSummaryViewResultSchema } from "../domain/analysisView
 
 /** Historical inspection is distinct from live browser capture and runtime authority. */
 export const WEB_NETWORK_CAPTURE_TOOL_CONTRACTS = [
+  COMPARE_WEB_API_SURFACES_CONTRACT,
   {
     name: "inspect_web_network_capture",
     ...toolContractMetadata("inspect_web_network_capture"),

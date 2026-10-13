@@ -181,6 +181,13 @@ inferred Evidence whenever any group is templated, and derived Evidence only whe
 no group was templated.
 See [derived API surfaces](web-network-captures.md#derived-api-surface).
 
+`compare_web_api_surfaces` compares two historical capture sources with the
+same grouping rules. Each `left`/`right` source is explicitly `inline` or
+`retained-evidence`. It returns per-side observed groups, response-set
+comparisons, both source identities and source coverage. Optional offset/limit
+page after full comparison; one-sided observations do not prove endpoint
+addition/removal. Missing response facts remain unknown, and no source is reopened.
+
 `inspect_analysis_view` projects a caller-selected view of already completed
 `inspect_binary_layout`, `analyze_javascript_application`, or `analyze_function`
 Evidence. Native views select procedure, pseudocode, assembly, basic blocks,

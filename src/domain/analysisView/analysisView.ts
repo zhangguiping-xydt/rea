@@ -423,19 +423,22 @@ export const dartAotSummaryViewResultSchema = z.strictObject({
   summary: dartAotSummarySchema,
 });
 
+/** Authenticated API-surface facts reused by historical capture comparison. */
+export const webNetworkApiSurfaceViewResultSchema = z.strictObject({
+  ...viewResultBase,
+  ...apiSurfaceFields,
+  kind: z.literal("api-surface"),
+  parent_operation: z.literal("inspect_web_network_capture"),
+  view: apiSurfaceViewSchema,
+  artifact: z.strictObject({
+    path: z.string(),
+    sha256: digestSchema.nullable(),
+  }),
+});
+
 /** Projected facts for one selected view of retained analysis Evidence. */
 export const analysisViewResultSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    ...viewResultBase,
-    ...apiSurfaceFields,
-    kind: z.literal("api-surface"),
-    parent_operation: z.literal("inspect_web_network_capture"),
-    view: apiSurfaceViewSchema,
-    artifact: z.strictObject({
-      path: z.string(),
-      sha256: digestSchema.nullable(),
-    }),
-  }),
+  webNetworkApiSurfaceViewResultSchema,
   z.strictObject({
     ...summaryViewResultBase,
     summary: z.union([

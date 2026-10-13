@@ -218,6 +218,50 @@ duplicates or the original numeric spelling of parsed native floats.
 
 ## Derived API surface
 
+### Comparing recorded API surfaces
+
+`compare_web_api_surfaces` / `rea compare-web-api-surfaces input.json --json`
+compares two historical capture Evidence sources using the same API-surface
+grouping rules. The initial supported format is HAR. Use complete capture
+Evidence, or the parent Evidence IDs from capture summary receipts:
+
+```json
+{
+  "left": {
+    "kind": "retained-evidence",
+    "evidence_id": "<left_capture_evidence_id>"
+  },
+  "right": {
+    "kind": "retained-evidence",
+    "evidence_id": "<right_capture_evidence_id>"
+  },
+  "offset": 0,
+  "limit": 50
+}
+```
+
+For portable CLI input, replace each reference with
+`{"kind":"inline","evidence":<complete capture Evidence>}`. The comparison
+authenticates both sources and reuses retained facts; it does not reopen the
+capture, invoke a decoder, replay requests or contact recorded URLs.
+
+Each group reports presence in the left, right or both retained inputs, with
+the original per-side groups and record ordinals. Matching uses method, origin,
+recorded path template and template rules; a literal `{numeric}` path does not
+match an inferred numeric segment. Deployment origins are not guessed or mapped.
+Response status/MIME sets are compared when both surfaces provide those facts.
+Because the existing surface reports missing response facts globally, either
+source's response unknowns make every matched response comparison unknown;
+the observed per-side values remain visible.
+
+The summary counts all matched groups before paging. Source record coverage,
+exclusions, unknowns, limitations and artifact/Evidence identities are retained
+separately from comparison-page coverage. One-sided observations do not prove
+server additions or removals, and matching observed sets do not prove runtime
+equivalence or global absence. No query/header/body content is compared.
+
+### Inspecting one capture
+
 Pass retained HAR Evidence to `inspect_analysis_view` with
 `view: {"kind":"api-surface","offset":0,"limit":50}`. Omitted offset and limit
 are 0 and 50. The view groups request lines by method, WHATWG URL origin and
