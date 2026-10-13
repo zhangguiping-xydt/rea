@@ -1,11 +1,9 @@
-import { z } from "zod";
 import {
   AnalysisInputError,
   AnalysisResourceConstraintError,
 } from "../analysisErrorCore.js";
 import type { AnalysisError } from "../analysisErrorBase.js";
 import { compareUnicodeCodePoints as compare } from "../unicodeCodePointOrder.js";
-import { parseRecordedTransportUrl } from "../recordedTransportUrl.js";
 import { err, ok, type Result } from "../result.js";
 import { MAX_JSON_DEPTH } from "../jsonValue.js";
 import {
@@ -14,6 +12,14 @@ import {
 } from "../webNetworkCapture.js";
 import { pageViewCoverage } from "./analysisViewCoverage.js";
 import type { UnsignedAnalysisView } from "./analysisView.js";
+
+import {
+  apiSurfaceMediaTypeEssence,
+  parseApiSurfaceRequest,
+  readApiSurfaceRequest,
+  readApiSurfaceResponse,
+  type ApiSurfaceCaptureFormat,
+} from "./webNetworkApiSurfaceRecord.js";
 
 type Surface = Extract<UnsignedAnalysisView, { kind: "api-surface" }>;
 type Group = Surface["groups"][number];
@@ -43,37 +49,6 @@ interface GroupState {
   readonly contentTypes: Set<string>;
 }
 type Buckets = Map<string, Map<string, Map<string, Map<string, GroupState>>>>;
-
-const requestSchema = z.object({
-  request: z.object({ url: z.unknown(), method: z.unknown() }),
-});
-const responseSchema = z.object({
-  response: z.object({
-    status: z.unknown().optional(),
-    content: z.unknown().optional(),
-  }),
-});
-const contentSchema = z.object({ mimeType: z.unknown().optional() });
-const MEDIA_TYPE_ESSENCE =
-  /^[A-Za-z0-9!#$%&'*+.^_`|~-]+\/[A-Za-z0-9!#$%&'*+.^_`|~-]+$/u;
-
-const mediaTypeEssence = (reported: string): string | null => {
-  const separator = reported.indexOf(";");
-  let start = 0;
-  let end = separator < 0 ? reported.length : separator;
-  // HTTP OWS is SP/HTAB. Scan from both ends so malformed internal runs of
-  // whitespace cannot cause repeated trailing-regex searches.
-  while (start < end && (reported[start] === " " || reported[start] === "\t"))
-    start += 1;
-  while (
-    end > start &&
-    (reported[end - 1] === " " || reported[end - 1] === "\t")
-  )
-    end -= 1;
-  const essence = reported.slice(start, end);
-  // Validate ASCII tokens before case folding can turn Unicode into ASCII.
-  return MEDIA_TYPE_ESSENCE.test(essence) ? essence.toLowerCase() : null;
-};
 
 // Conservative representation allowances, not an enforced V8 heap limit.
 // Fixed charges include the accumulator, bucket/set entries, array growth and
@@ -291,47 +266,37 @@ export class WebNetworkApiSurfaceAccumulator {
     return ok({ template: parts.join(""), rules: rules.join(""), segments });
   }
 
-  add(record: WebNetworkCaptureRecord): Result<void, AnalysisError> {
+  add(
+    record: WebNetworkCaptureRecord,
+    format: ApiSurfaceCaptureFormat = "har",
+  ): Result<void, AnalysisError> {
     const limitations = this.addLimitations(record.limitations);
     if (!limitations.ok) return limitations;
-    const request = requestSchema.safeParse(record.reported);
-    if (!request.success)
-      return this.#exclude(record.ordinal, "request-unavailable");
-    const { url, method } = request.data.request;
-    if (url === null) return this.#exclude(record.ordinal, "url-redacted");
-    if (typeof url !== "string")
-      return this.#exclude(record.ordinal, "url-unparseable");
-    // Admission precedes URL parsing, text normalization and path materialization.
-    if (!this.#temporary(RECORD_SCRATCH_BYTES + textBytes(url.length)))
+    const request = readApiSurfaceRequest(record, format);
+    if (!request.ok) return this.#exclude(record.ordinal, request.error);
+    // Native fields additionally materialize an authority, base origin and URL.
+    const copies = format === "mitmproxy" ? 3 : 1;
+    if (
+      !this.#temporary(
+        RECORD_SCRATCH_BYTES + copies * textBytes(request.value.textLength),
+      )
+    )
       return this.#overBudget();
     try {
-      const parsed = parseRecordedTransportUrl(url);
-      if (parsed.origin === null)
-        return this.#exclude(record.ordinal, "url-unparseable");
-      if (typeof method !== "string" || method.length === 0)
-        return this.#exclude(record.ordinal, "method-unavailable");
-      if (parsed.path === null)
-        return this.#exclude(record.ordinal, "url-unparseable");
-      const response = responseSchema.safeParse(record.reported);
-      const status = response.success
-        ? response.data.response.status
-        : undefined;
-      const content = contentSchema.safeParse(
-        response.success ? response.data.response.content : undefined,
-      );
-      const mime = content.success ? content.data.mimeType : undefined;
-      const rawMime = typeof mime === "string" ? mime : "";
-      if (!this.#temporary(textBytes(rawMime.length)))
+      const parsed = parseApiSurfaceRequest(request.value);
+      if (!parsed.ok) return this.#exclude(record.ordinal, parsed.error);
+      const response = readApiSurfaceResponse(record, format);
+      if (!this.#temporary(textBytes(response.mime.length)))
         return this.#overBudget();
-      const route = this.#route(parsed.path);
+      const route = this.#route(parsed.value.path);
       if (!route.ok) return route;
       return this.#append(
         record.ordinal,
-        method,
-        parsed.origin,
+        parsed.value.method,
+        parsed.value.origin,
         route.value,
-        typeof status === "number" && status !== 0 ? status : null,
-        mediaTypeEssence(rawMime),
+        response.status,
+        apiSurfaceMediaTypeEssence(response.mime),
       );
     } finally {
       // Per-record strings and descriptors never become cumulative scratch.

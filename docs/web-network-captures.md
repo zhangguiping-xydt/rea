@@ -218,7 +218,7 @@ duplicates or the original numeric spelling of parsed native floats.
 
 ## Derived API surface
 
-Pass retained HAR Evidence to `inspect_analysis_view` with
+Pass retained HAR or native mitmproxy Evidence to `inspect_analysis_view` with
 `view: {"kind":"api-surface","offset":0,"limit":50}`. Omitted offset and limit
 are 0 and 50. The view groups request lines by method, WHATWG URL origin and
 path template, sorted by origin, template and method. Query strings, fragments,
@@ -255,7 +255,26 @@ response fields, including HAR's `status: 0` and an empty `mimeType`, remain
 unknown, not invented statuses or MIME types.
 
 The view makes no handler-identity, schema or causality claim. It performs no
-network activity. Native mitmproxy, SAZ and qlog captures return a typed unsupported error.
+network activity. SAZ and qlog captures return a typed unsupported error.
+For native mitmproxy, only recorded HTTP flows are eligible. The request origin
+comes from recorded `scheme`, `host` and `port`, and the still-encoded path comes
+from `request.path`. Origin-form targets (including leading double slashes) keep
+their literal path; an absolute HTTP target must agree with the recorded origin.
+No Host header, authority field or synthetic HAR `url` supplies missing facts.
+Non-HTTP records, unreadable identity fields, invalid hosts/ports, conflicting
+absolute targets, CONNECT authority targets and OPTIONS `*` remain explicit
+exclusions. A null native field is called redacted only with a matching redaction
+coordinate; undecodable fields otherwise remain unparseable.
+
+Native response facts use `status_code` (integer 100–999) and one unambiguous
+case-insensitive Content-Type tuple in the recorded header array. Duplicate
+Content-Type entries, malformed/unreadable header names or unavailable values
+remain unknown. Native `status` or `content.mimeType` extensions never substitute
+for producer fields. Bodies and binary sidecars are not decoded or copied.
+Constructed URL and normalized MIME scratch is admitted before allocation. The
+view uses already retained Evidence and needs no installed decoder; initial native
+capture inspection still requires the existing Linux mitmdump 12.2.3 profile.
+
 Parents inspected with `sensitive_values`, or whose Evidence does not record
 `sensitive_value_count`, return a typed unsupported error whose reason is the
 canonical token `sensitive_values_unretained`. The view would write path

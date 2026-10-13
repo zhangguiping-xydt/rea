@@ -98,7 +98,7 @@ export const projectWebNetworkApiSurfaceView = (
       ]),
     );
   const capture = parsed.data;
-  if (capture.format !== "har")
+  if (capture.format !== "har" && capture.format !== "mitmproxy")
     return unsupported(
       `api-surface does not support capture format ${capture.format}.`,
     );
@@ -119,7 +119,7 @@ export const projectWebNetworkApiSurfaceView = (
   ]);
   if (!limitations.ok) return limitations;
   for (const record of capture.records) {
-    const added = accumulator.add(record);
+    const added = accumulator.add(record, capture.format);
     if (!added.ok) return added;
   }
   const page = accumulator.page(view.offset, view.limit);
