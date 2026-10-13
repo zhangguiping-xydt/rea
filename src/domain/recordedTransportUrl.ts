@@ -2,6 +2,8 @@
 export interface RecordedTransportUrl {
   readonly origin: string | null;
   readonly path: string | null;
+  /** Recorded query text without ? or fragment; null when raw boundaries are ambiguous. */
+  readonly query: string | null;
   readonly credentials:
     | { readonly start: number; readonly end: number }
     | "ambiguous"
@@ -31,6 +33,7 @@ export const parseRecordedTransportUrl = (
     return {
       origin,
       path: null,
+      query: null,
       credentials: hasCredentials ? "ambiguous" : null,
     };
 
@@ -66,10 +69,25 @@ export const parseRecordedTransportUrl = (
     !stableAuthority ||
     (special && value[authorityEnd] === "\\")
   )
-    return { origin, path: null, credentials };
-  if (value[authorityEnd] !== "/") return { origin, path: "/", credentials };
+    return { origin, path: null, query: null, credentials };
+  const fragmentStart = value.indexOf("#", authorityEnd);
+  const queryStart = value.indexOf("?", authorityEnd);
+  const query =
+    queryStart < 0 || (fragmentStart >= 0 && queryStart > fragmentStart)
+      ? ""
+      : value.slice(
+          queryStart + 1,
+          fragmentStart < 0 ? undefined : fragmentStart,
+        );
+  if (value[authorityEnd] !== "/")
+    return { origin, path: "/", query, credentials };
   let pathEnd = authorityEnd;
   while (pathEnd < value.length && !"?#".includes(value[pathEnd]!))
     pathEnd += 1;
-  return { origin, path: value.slice(authorityEnd, pathEnd), credentials };
+  return {
+    origin,
+    path: value.slice(authorityEnd, pathEnd),
+    query,
+    credentials,
+  };
 };

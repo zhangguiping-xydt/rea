@@ -41,6 +41,7 @@ interface GroupState {
   readonly ordinals: number[];
   readonly statuses: Set<number>;
   readonly contentTypes: Set<string>;
+  readonly queryNames: Set<string> | undefined;
 }
 type Buckets = Map<string, Map<string, Map<string, Map<string, GroupState>>>>;
 
@@ -291,7 +292,36 @@ export class WebNetworkApiSurfaceAccumulator {
     return ok({ template: parts.join(""), rules: rules.join(""), segments });
   }
 
-  add(record: WebNetworkCaptureRecord): Result<void, AnalysisError> {
+  /** Decode names only; query values never enter the query-name parser or sets. */
+  #queryNames(query: string): Result<ReadonlySet<string>, AnalysisError> {
+    if (!this.#temporary(RECORD_SCRATCH_BYTES)) return this.#overBudget();
+    const names = new Set<string>();
+    let start = 0;
+    while (start < query.length) {
+      const ampersand = query.indexOf("&", start);
+      const end = ampersand < 0 ? query.length : ampersand;
+      if (end > start) {
+        let nameEnd = start;
+        while (nameEnd < end && query[nameEnd] !== "=") nameEnd += 1;
+        const scratch = ENTRY_BYTES + textBytes(nameEnd - start);
+        if (!this.#temporary(scratch)) return this.#overBudget();
+        // Decode a name as a form value so a literal leading ? is not stripped
+        // by URLSearchParams' query-string constructor. No source values enter it.
+        const name = new URLSearchParams(
+          `name=${query.slice(start, nameEnd)}`,
+        ).get("name")!;
+        if (names.has(name)) this.#temporaryBytes -= scratch;
+        else names.add(name);
+      }
+      start = end + 1;
+    }
+    return ok(names);
+  }
+
+  add(
+    record: WebNetworkCaptureRecord,
+    includeQueryNames = false,
+  ): Result<void, AnalysisError> {
     const limitations = this.addLimitations(record.limitations);
     if (!limitations.ok) return limitations;
     const request = requestSchema.safeParse(record.reported);
@@ -325,6 +355,10 @@ export class WebNetworkApiSurfaceAccumulator {
         return this.#overBudget();
       const route = this.#route(parsed.path);
       if (!route.ok) return route;
+      const names = includeQueryNames
+        ? this.#queryNames(parsed.query ?? "")
+        : undefined;
+      if (names !== undefined && !names.ok) return names;
       return this.#append(
         record.ordinal,
         method,
@@ -332,6 +366,7 @@ export class WebNetworkApiSurfaceAccumulator {
         route.value,
         typeof status === "number" && status !== 0 ? status : null,
         mediaTypeEssence(rawMime),
+        names?.value,
       );
     } finally {
       // Per-record strings and descriptors never become cumulative scratch.
@@ -346,6 +381,7 @@ export class WebNetworkApiSurfaceAccumulator {
     route: Route,
     status: number | null,
     mime: string | null,
+    queryNames: ReadonlySet<string> | undefined,
   ): Result<void, AnalysisError> {
     let group = this.#buckets
       .get(method)
@@ -371,6 +407,10 @@ export class WebNetworkApiSurfaceAccumulator {
     if (status !== null && !group?.statuses.has(status)) bytes += ENTRY_BYTES;
     if (mime !== null && !group?.contentTypes.has(mime))
       bytes += ENTRY_BYTES + textBytes(mime.length);
+    if (queryNames !== undefined)
+      for (const name of queryNames)
+        if (!group?.queryNames?.has(name))
+          bytes += ENTRY_BYTES + textBytes(name.length);
     // Reserve the whole mutation while route scratch is still live. No sets,
     // map entries, arrays or new observed values are retained before admission.
     if (!this.#retain(bytes)) return this.#overBudget();
@@ -387,6 +427,7 @@ export class WebNetworkApiSurfaceAccumulator {
         ordinals: [],
         statuses: new Set(),
         contentTypes: new Set(),
+        queryNames: queryNames === undefined ? undefined : new Set(),
       };
       const byOrigin = this.#buckets.get(method) ?? new Map();
       this.#buckets.set(method, byOrigin);
@@ -404,6 +445,8 @@ export class WebNetworkApiSurfaceAccumulator {
     if (status === null || mime === null) this.#unavailableResponse = true;
     if (status !== null) group.statuses.add(status);
     if (mime !== null) group.contentTypes.add(mime);
+    if (queryNames !== undefined)
+      for (const name of queryNames) group.queryNames?.add(name);
     return ok(undefined);
   }
 
@@ -440,6 +483,9 @@ export class WebNetworkApiSurfaceAccumulator {
         record_ordinals: [...group.ordinals],
         statuses: [...group.statuses].sort((a, b) => a - b),
         content_types: [...group.contentTypes].sort(compare),
+        ...(group.queryNames === undefined
+          ? {}
+          : { query_parameter_names: [...group.queryNames].sort(compare) }),
         flags: [
           ...(group.ordinals.length === 1 ? ["single-sample" as const] : []),
           ...(group.statuses.size > 1 ? ["mixed-statuses" as const] : []),

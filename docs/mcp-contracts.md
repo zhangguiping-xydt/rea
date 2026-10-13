@@ -180,6 +180,9 @@ segments are inferences. Because paging follows the full grouping, every page is
 inferred Evidence whenever any group is templated, and derived Evidence only when
 no group was templated.
 See [derived API surfaces](web-network-captures.md#derived-api-surface).
+The optional `view.include_query_parameter_names: true` adds distinct,
+form-decoded query names to each group. It includes no query values and makes
+no required-parameter or value-type claims; omitted/false preserves default output.
 
 `inspect_analysis_view` projects a caller-selected view of already completed
 `inspect_binary_layout`, `analyze_javascript_application`, or `analyze_function`

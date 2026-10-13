@@ -221,8 +221,21 @@ duplicates or the original numeric spelling of parsed native floats.
 Pass retained HAR Evidence to `inspect_analysis_view` with
 `view: {"kind":"api-surface","offset":0,"limit":50}`. Omitted offset and limit
 are 0 and 50. The view groups request lines by method, WHATWG URL origin and
-path template, sorted by origin, template and method. Query strings, fragments,
+path template, sorted by origin, template and method. Query values, fragments,
 credentials, headers and bodies are not copied into groups.
+
+To inventory the query parameter names observed for each endpoint, add
+`"include_query_parameter_names": true` to the view. Each group then includes
+`query_parameter_names`, a sorted set of names from its retained request URLs.
+Omitting the option or setting it to false keeps the default output unchanged.
+Names use form decoding: percent-encoded UTF-8 is decoded, `+` becomes a space,
+and malformed UTF-8 becomes the replacement character. Empty names are retained;
+empty `&`-separated fields are ignored. A URL without a query contributes no
+names. Repeated names are listed once; values and fragments are never included.
+For example, `/products?category=books&page=1` and
+`/products?category=games&sort=price` contribute `category`, `page`, and `sort`.
+These are observed names, not required parameters, inferred value types, or a
+complete server schema. Groups retain the original record ordinals for inspection.
 
 | Rule       | Exact segment format                                 | Placeholder  |
 | ---------- | ---------------------------------------------------- | ------------ |

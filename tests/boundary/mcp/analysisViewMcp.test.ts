@@ -878,6 +878,24 @@ it("projects an actual HAR capture retained by the public MCP workflow", async (
       }),
     ]),
   });
+  const named = await client.callTool({
+    name: "inspect_analysis_view",
+    arguments: {
+      source: { kind: "retained-evidence", evidence_id: parent.evidence_id },
+      view: { kind: "api-surface", include_query_parameter_names: true },
+    },
+  });
+  expect(named.isError).not.toBe(true);
+  expect(
+    parseEvidence(named.structuredContent).normalized_result,
+  ).toMatchObject({
+    groups: expect.arrayContaining([
+      expect.objectContaining({
+        path_template: "/users/{numeric}",
+        query_parameter_names: ["not-in-view"],
+      }),
+    ]),
+  });
 });
 
 it("reproduces the published API surface example from decoded fixture bytes", async () => {

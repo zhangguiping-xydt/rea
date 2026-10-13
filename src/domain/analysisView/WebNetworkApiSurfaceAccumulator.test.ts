@@ -171,3 +171,35 @@ it("bounds excluded-record storage and distinct limitations as well as endpoint 
   expect(accepted).toBeLessThan(1000);
   expect(accumulator.page(0, 1).excluded_records).toHaveLength(accepted);
 });
+
+it("admits query-name expansion before changing a previously retained group", () => {
+  const accumulator = new WebNetworkApiSurfaceAccumulator(64 * 1024);
+  const first = accumulator.add(record(0, "/items?existing=one"), true);
+  if (!first.ok) throw first.error;
+  const before = accumulator.page(0, 1);
+  const names = Array.from({ length: 1000 }, (_, i) => `key${i}=value`).join(
+    "&",
+  );
+  expect(accumulator.add(record(1, `/items?${names}`), true)).toMatchObject({
+    ok: false,
+    error: { _tag: "AnalysisResourceConstraintError" },
+  });
+  expect(accumulator.page(0, 1)).toEqual(before);
+  expect(before.groups).toMatchObject([
+    { query_parameter_names: ["existing"] },
+  ]);
+});
+
+it("retains repeated query names once across records and within one query", () => {
+  const accumulator = new WebNetworkApiSurfaceAccumulator(256 * 1024);
+  for (let ordinal = 0; ordinal < 500; ordinal += 1) {
+    const result = accumulator.add(record(ordinal, "/items?q=one&q=two"), true);
+    if (!result.ok) throw result.error;
+  }
+  expect(accumulator.page(0, 1).groups).toMatchObject([
+    {
+      query_parameter_names: ["q"],
+      record_ordinals: Array.from({ length: 500 }, (_, i) => i),
+    },
+  ]);
+});

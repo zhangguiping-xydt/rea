@@ -416,5 +416,34 @@ cliTest(
     });
     expect(JSON.stringify(result.json)).not.toContain("password");
     expect(JSON.stringify(result.json)).not.toContain("ordinary");
+    await writeFile(
+      input,
+      JSON.stringify({
+        source: { kind: "inline", evidence: parent },
+        view: { kind: "api-surface", include_query_parameter_names: true },
+      }),
+    );
+    const named = await cli.run({
+      arguments: ["inspect-analysis-view", input, "--json"],
+      environment,
+    });
+    expect(named.exitCode, named.stdout).toBe(0);
+    expect(named.json).toMatchObject({
+      evidence_links: [parent.evidence_id],
+      normalized_result: {
+        groups: expect.arrayContaining([
+          expect.objectContaining({
+            path_template: "/a/%2e%2e/admin",
+            query_parameter_names: ["token"],
+          }),
+          expect.objectContaining({
+            path_template: "/admin",
+            query_parameter_names: [],
+          }),
+        ]),
+      },
+    });
+    expect(JSON.stringify(named.json)).not.toContain("ordinary");
+    expect(JSON.stringify(named.json)).not.toContain("password");
   },
 );
